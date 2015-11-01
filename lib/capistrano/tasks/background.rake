@@ -8,7 +8,12 @@ module SSHKit
       if pid_file.nil?
         orig_in_background(&_block)
       else
-        sprintf("( nohup %s > /dev/null & \\echo $! > #{pid_file})", yield)
+        env_str = environment_string
+        if env_str.nil?
+          sprintf("( nohup %s > /dev/null & \\echo $! > #{pid_file})", yield)
+        else
+          sprintf(" && ( #{env_str} nohup %s > /dev/null & \\echo $! > #{pid_file})", yield)
+        end
       end
     end
   end
@@ -16,7 +21,17 @@ end
 
 namespace :load do
   task :defaults do
+    set :background_default_hooks, true
     set :background_processes, []
+  end
+end
+
+namespace :deploy do
+  before :starting, :check_background_hooks do
+    invoke 'background:add_default_hooks' if fetch(:background_default_hooks)
+  end
+  after :publishing, :restart_background do
+    invoke 'background:restart' if fetch(:background_default_hooks)
   end
 end
 
@@ -35,11 +50,17 @@ namespace :background do
     test(*("[ -f #{file} ]").split(' '))
   end
 
+  def quiet_process(pid_file)
+    if file_exists? pid_file
+      background "kill -USR1 `cat #{pid_file}`"
+    end
+  end
+
   def start_process(pid_file, options)
     stage = fetch :stage
     args = options[:execute]
     args << {:pid_file => pid_file}
-    with(:RAILS_ENV => "#{stage} && ") do
+    with(:RAILS_ENV => stage) do
       background *args
     end
   end
@@ -56,6 +77,19 @@ namespace :background do
     after 'deploy:updated', 'background:stop'
     after 'deploy:reverted', 'background:stop'
     after 'deploy:published', 'background:start'
+  end
+
+  desc 'Quiet background processes'
+  task :quiet do
+    background_processes = fetch :background_processes
+    background_processes.each do |options|
+      role = options[:role] || :app
+      on roles role do
+        within release_path do
+          quiet_process(get_pid_file(options))
+        end
+      end
+    end
   end
 
   desc 'Stop background processes'
