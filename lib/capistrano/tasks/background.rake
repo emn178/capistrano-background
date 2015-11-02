@@ -1,24 +1,3 @@
-module SSHKit
-  class Command
-    alias_method :orig_in_background, :in_background
-
-    def in_background(&_block)
-      return yield unless options[:run_in_background]
-      pid_file = options[:pid_file]
-      if pid_file.nil?
-        orig_in_background(&_block)
-      else
-        env_str = environment_string
-        if env_str.nil?
-          sprintf("( nohup %s > /dev/null & \\echo $! > #{pid_file})", yield)
-        else
-          sprintf(" && ( #{env_str} nohup %s > /dev/null & \\echo $! > #{pid_file})", yield)
-        end
-      end
-    end
-  end
-end
-
 namespace :load do
   task :defaults do
     set :background_default_hooks, true
@@ -43,16 +22,16 @@ namespace :background do
   end
 
   def pid_process_exists?(pid_file)
-    file_exists?(pid_file) and test(*("kill -0 $( cat #{pid_file} )").split(' '))
+    file_exists?(pid_file) && test(*%{kill -0 `cat #{pid_file}`})
   end
 
   def file_exists?(file)
-    test(*("[ -f #{file} ]").split(' '))
+    test(*%{[ -f #{file} ]})
   end
 
   def quiet_process(pid_file)
     if file_exists? pid_file
-      background "kill -USR1 `cat #{pid_file}`"
+      background "kill -TERM `cat #{pid_file}`"
     end
   end
 
@@ -65,9 +44,11 @@ namespace :background do
     end
   end
 
-  def stop_process(pid_file)
+  def stop_process(pid_file, timeout)
     if file_exists? pid_file
-      background "kill -TERM `cat #{pid_file}`" 
+      if pid_process_exists? pid_file
+        rake "terminate `cat #{pid_file}` -- -t #{timeout}" 
+      end
       execute "rm #{pid_file}"
     end
   end
@@ -99,7 +80,7 @@ namespace :background do
       role = options[:role] || :app
       on roles role do
         within release_path do
-          stop_process(get_pid_file(options))
+          stop_process(get_pid_file(options), options[:timeout] || 60)
         end
       end
     end

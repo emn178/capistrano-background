@@ -7,7 +7,8 @@ Run background process for capistrano.
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'capistrano-background'
+gem 'capistrano-background', group: :development
+gem 'terminate'
 ```
 
 And then execute:
@@ -27,7 +28,8 @@ Add your background processes.
 ```Ruby
 add_background_process({
   :id => :scheduler,
-  :execute => [:rake, 'scheduler']
+  :execute => [:rake, 'scheduler'],
+  :timeout => 60 # kill process after waiting this time (seconds)
 })
 ```
 It will run `rake scheduler` in background when deploy. You can also use command:

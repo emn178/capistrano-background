@@ -1,3 +1,4 @@
-if Gem::Specification.find_by_name('capistrano').version >= Gem::Version.new('3.0.0')
+if defined? task
+  require 'capistrano/background/command'
   load File.expand_path('../tasks/background.rake', __FILE__)
 end
