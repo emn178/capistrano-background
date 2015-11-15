@@ -26,11 +26,12 @@ require 'capistrano/background'
 ```
 Add your background processes.
 ```Ruby
-add_background_process({
-  :id => :scheduler,
-  :execute => [:rake, 'scheduler'],
-  :timeout => 60 # kill process after waiting this time (seconds)
-})
+set :background_processes, {
+  :scheduler => {
+    :execute => [:rake, 'scheduler'],
+    :timeout => 60 # kill process after waiting this time (seconds)
+  }
+}
 ```
 It will run `rake scheduler` in background when deploy. You can also use command:
 

@@ -15,8 +15,6 @@ namespace :deploy do
 end
 
 namespace :background do
-  processes = []
-
   def get_pid_file(options)
     options[:pid_file] || File.join(shared_path, 'tmp', 'pids', "#{options[:id]}.pid")
   end
@@ -30,7 +28,7 @@ namespace :background do
   end
 
   def quiet_process(pid_file)
-    if file_exists? pid_file
+    if pid_process_exists? pid_file
       background "kill -TERM `cat #{pid_file}`"
     end
   end
@@ -47,7 +45,7 @@ namespace :background do
   def stop_process(pid_file, timeout)
     if file_exists? pid_file
       if pid_process_exists? pid_file
-        rake "terminate `cat #{pid_file}` -- -t #{timeout}" 
+        execute :bundle, :exec, *%{terminate `cat #{pid_file}` -t #{timeout}}
       end
       execute "rm #{pid_file}"
     end
@@ -63,7 +61,8 @@ namespace :background do
   desc 'Quiet background processes'
   task :quiet do
     background_processes = fetch :background_processes
-    background_processes.each do |options|
+    background_processes.each do |id, options|
+      options[:id] = id
       role = options[:role] || :app
       on roles role do
         within release_path do
@@ -76,7 +75,8 @@ namespace :background do
   desc 'Stop background processes'
   task :stop do
     background_processes = fetch :background_processes
-    background_processes.each do |options|
+    background_processes.each do |id, options|
+      options[:id] = id
       role = options[:role] || :app
       on roles role do
         within release_path do
@@ -89,7 +89,8 @@ namespace :background do
   desc 'Start background processes'
   task :start do
     background_processes = fetch :background_processes
-    background_processes.each do |options|
+    background_processes.each do |id, options|
+      options[:id] = id
       role = options[:role] || :app
       on roles role do
         within release_path do
@@ -105,9 +106,4 @@ namespace :background do
     invoke 'background:stop'
     invoke 'background:start'
   end
-end
-
-def add_background_process(options)
-  background_processes = fetch :background_processes
-  background_processes << options
 end
